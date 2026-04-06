@@ -1,43 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Smart Waste Management</title>
-
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-    <link rel="stylesheet" href="styles.css" />
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-
-    <div id="loginPage">
-        <h2>Login</h2>
-        <input type="text" id="user" placeholder="Username"><br>
-        <input type="password" id="pass" placeholder="Password"><br>
-        <button type="button" onclick="login()">Login</button>
-    </div>
-
-    <div id="mainApp" style="display:none;">
-        <h2 class="dashboard-title">IoT Waste Monitoring - Meghalaya</h2>
-        <div class="stats-bar">
-            <b>Total Bins:</b> <span id="total"></span> |
-            <b>Full Bins:</b> <span id="full"></span> |
-            <b>Critical:</b> <span id="critical"></span>
-        </div>
-        <div class="chart-wrap">
-            <canvas id="binChart"></canvas>
-        </div>
-        <div id="map"></div>
-    </div>
-
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-    <script src="bins.js"></script>
-    <script src="login.js"></script>
-    <script src="chart.js"></script>
-    <script src="map.js"></script>
-</body>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      body { margin: 0; }
+      #root { min-height: 100vh; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
