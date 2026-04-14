@@ -7,11 +7,11 @@ import { getColor, popupHtml } from "../utils/binHelpers.js";
 import { blockedAreas } from "../utils/routeHelpers.js";
 
 const mapContainer = {
-  height: "100vh",
+  height: "100%",
   width: "100%",
 };
 
-export default function WasteMap({ bins, routeData, depots, selectedDepot }) {
+export default function WasteMap({ bins, routeData, depots, selectedDepot, citizenReports = [], onLocationClick = ()=>{} }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
@@ -19,6 +19,9 @@ export default function WasteMap({ bins, routeData, depots, selectedDepot }) {
   const routeMarkersRef = useRef([]);
   const blockedLayersRef = useRef([]);
   const depotMarkersRef = useRef([]);
+  const truckMarkerRef = useRef(null);
+  const truckAnimationRef = useRef(null);
+  const reportMarkersRef = useRef([]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -73,11 +76,17 @@ export default function WasteMap({ bins, routeData, depots, selectedDepot }) {
 
     markersRef.current = bins.map((bin) => {
       const marker = L.circleMarker([bin.lat, bin.lng], {
-        color: getColor(bin.fill),
-        radius: 10,
+        color: bin.isOnline ? getColor(bin.fill) : "#666",
+        radius: bin.isOnline ? 10 : 8,
+        fillOpacity: bin.isOnline ? 0.8 : 0.4,
+        weight: bin.isOnline ? 2 : 1,
       }).addTo(map);
       marker.bindPopup(popupHtml(bin));
       return marker;
+    });
+
+    map.on("click", (e) => {
+      onLocationClick(e.latlng.lat, e.latlng.lng);
     });
 
     const t = requestAnimationFrame(() => map.invalidateSize());
@@ -91,6 +100,16 @@ export default function WasteMap({ bins, routeData, depots, selectedDepot }) {
       routeMarkersRef.current = [];
       blockedLayersRef.current = [];
       depotMarkersRef.current = [];
+      reportMarkersRef.current.forEach((marker) => map.removeLayer(marker));
+      reportMarkersRef.current = [];
+      if (truckAnimationRef.current) {
+        window.clearInterval(truckAnimationRef.current);
+        truckAnimationRef.current = null;
+      }
+      if (truckMarkerRef.current) {
+        truckMarkerRef.current.remove();
+        truckMarkerRef.current = null;
+      }
     };
   }, [selectedDepot, depots]);
 
@@ -100,7 +119,12 @@ export default function WasteMap({ bins, routeData, depots, selectedDepot }) {
     bins.forEach((bin, i) => {
       const m = markers[i];
       if (m) {
-        m.setStyle({ color: getColor(bin.fill) });
+        m.setStyle({
+          color: bin.isOnline ? getColor(bin.fill) : "#666",
+          radius: bin.isOnline ? 10 : 8,
+          fillOpacity: bin.isOnline ? 0.8 : 0.4,
+          weight: bin.isOnline ? 2 : 1,
+        });
         m.setPopupContent(popupHtml(bin));
       }
     });
@@ -118,9 +142,20 @@ export default function WasteMap({ bins, routeData, depots, selectedDepot }) {
     routeMarkersRef.current.forEach((marker) => map.removeLayer(marker));
     routeMarkersRef.current = [];
 
+    if (truckAnimationRef.current) {
+      window.clearInterval(truckAnimationRef.current);
+      truckAnimationRef.current = null;
+    }
+    if (truckMarkerRef.current) {
+      truckMarkerRef.current.remove();
+      truckMarkerRef.current = null;
+    }
+
     if (!routeData || !routeData.coordinates || routeData.coordinates.length === 0) return;
 
-    routeRef.current = L.polyline(routeData.coordinates.map(([lng, lat]) => [lat, lng]), {
+    const routeCoords = routeData.coordinates.map(([lng, lat]) => [lat, lng]);
+
+    routeRef.current = L.polyline(routeCoords, {
       color: "#7e4bff",
       weight: 5,
       opacity: 0.95,
@@ -142,10 +177,59 @@ export default function WasteMap({ bins, routeData, depots, selectedDepot }) {
       routeMarkersRef.current.push(marker);
     });
 
-    map.fitBounds(L.latLngBounds(routeData.coordinates.map(([lng, lat]) => [lat, lng])), {
+    const truckIcon = L.divIcon({
+      className: "truck-marker",
+      html: `<div style="display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#3fd3ff,#8d5fff);box-shadow:0 16px 30px rgba(0,0,0,0.28);color:#fff;font-size:1.2rem;">🚚</div>`,
+      iconSize: [48, 48],
+      iconAnchor: [24, 24],
+    });
+
+    truckMarkerRef.current = L.marker(routeCoords[0], {
+      icon: truckIcon,
+      zIndexOffset: 1000,
+    }).addTo(map);
+
+    let currentStep = 0;
+    truckAnimationRef.current = window.setInterval(() => {
+      currentStep += 1;
+      if (currentStep >= routeCoords.length) {
+        currentStep = 0;
+      }
+      truckMarkerRef.current?.setLatLng(routeCoords[currentStep]);
+    }, 700);
+
+    map.fitBounds(L.latLngBounds(routeCoords), {
       padding: [50, 50],
     });
   }, [routeData]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    reportMarkersRef.current.forEach((marker) => map.removeLayer(marker));
+    reportMarkersRef.current = [];
+
+    citizenReports.forEach((report) => {
+      const icon = L.divIcon({
+        className: "report-marker",
+        html: `<div style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:${report.type === "Overflow" ? "linear-gradient(135deg,#ff6b6b,#ff8787)" : "linear-gradient(135deg,#ffd166,#ffb84d)"};box-shadow:0 12px 24px rgba(0,0,0,0.3);color:#fff;font-size:1.1rem;border:3px solid #fff;">${report.type === "Overflow" ? "🚨" : "🧹"}</div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+
+      const marker = L.marker([report.location.lat, report.location.lng], {
+        icon,
+        zIndexOffset: 500,
+      }).addTo(map);
+
+      marker.bindPopup(
+        `<b>${report.type}</b><br>Reported: ${report.timestamp.toLocaleTimeString()}<br>Status: ${report.status}`
+      );
+
+      reportMarkersRef.current.push(marker);
+    });
+  }, [citizenReports]);
 
   return <div ref={containerRef} style={mapContainer} />;
 }
