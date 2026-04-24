@@ -50,7 +50,7 @@ export default function Login({ onSuccess }) {
           <p className="auth-subtitle">
             {mode === "login"
               ? "Sign in to continue to the digital twin dashboard."
-              : "Join now and start exploring the lavender-powered sign up flow."}
+              : "Join now and start exploring the sign up flow."}
           </p>
 
           <form className="auth-form" onSubmit={handleSubmit}>
@@ -86,9 +86,7 @@ export default function Login({ onSuccess }) {
           </div>
 
           {status && <div className="auth-status">{status}</div>}
-          <div className="auth-footer">
-            Lavender theme with soft glow visuals for a calm sign-in experience.
-          </div>
+          
         </div>
       </div>
     </div>
