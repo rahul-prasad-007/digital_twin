@@ -5,19 +5,21 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Publishes ./dist to branch `gh-pages`. In repo Settings → Pages, choose:
-# Source: Deploy from a branch → Branch: gh-pages, folder: / (root)
+# Copies Vite build into docs/ on main. In repo Settings → Pages set:
+# Source: Deploy from a branch → Branch: main → Folder: /docs
 
 permissions:
   contents: write
 
 concurrency:
-  group: gh-pages
+  group: pages-docs
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Avoid loops when the deploy bot commits back to main
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,8 +28,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:github
-      - uses: peaceiris/actions-gh-pages@v4
+      - name: Sync dist → docs
+        run: |
+          rm -rf docs
+          mkdir -p docs
+          cp -r dist/. docs/
+      - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          force_orphan: true
+          commit_message: "chore(pages): deploy Vite build to docs/ [skip ci]"
+          file_pattern: "docs/"
