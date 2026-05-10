@@ -1,115 +1,104 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { portal as t } from "./portal/portalTheme.js";
 
-const notificationPanel = {
-  position: "fixed",
-  top: 20,
-  right: 20,
-  width: 320,
-  maxHeight: "60vh",
-  overflowY: "auto",
-  zIndex: 1000,
-  display: "grid",
-  gap: 12,
-};
-
-const notificationItem = {
-  padding: "16px 18px",
-  borderRadius: 16,
-  background: "rgba(255, 255, 255, 0.95)",
-  border: "1px solid rgba(255, 255, 255, 0.2)",
-  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
-  backdropFilter: "blur(12px)",
-  color: "#1a1a1a",
-  fontSize: 14,
-  lineHeight: 1.4,
-  animation: "slideIn 0.3s ease-out",
-};
-
-const criticalNotification = {
-  ...notificationItem,
-  background: "linear-gradient(135deg, #ff6b6b, #ff4757)",
-  color: "#fff",
-  border: "1px solid rgba(255, 107, 107, 0.3)",
-};
-
-const successNotification = {
-  ...notificationItem,
-  background: "linear-gradient(135deg, #5bff96, #4ecdc4)",
-  color: "#fff",
-  border: "1px solid rgba(91, 255, 150, 0.3)",
-};
-
-const infoNotification = {
-  ...notificationItem,
-  background: "linear-gradient(135deg, #74d0ff, #5b9bff)",
-  color: "#fff",
-  border: "1px solid rgba(116, 208, 255, 0.3)",
-};
-
-const closeButton = {
-  position: "absolute",
-  top: 8,
-  right: 8,
-  background: "none",
-  border: "none",
-  color: "inherit",
-  cursor: "pointer",
-  fontSize: 16,
-  opacity: 0.7,
-  padding: 4,
-};
-
-const styles = `
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+const slideKeyframes = `
+@keyframes notificationSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 `;
 
 export default function NotificationPanel({ notifications, onRemove }) {
   useEffect(() => {
     const styleSheet = document.createElement("style");
-    styleSheet.textContent = styles;
+    styleSheet.textContent = slideKeyframes;
     document.head.appendChild(styleSheet);
     return () => document.head.removeChild(styleSheet);
   }, []);
 
-  const getNotificationStyle = (type) => {
+  const getTone = (type) => {
     switch (type) {
       case "critical":
-        return criticalNotification;
+        return { bg: "rgba(239,68,68,0.18)", border: "rgba(239,68,68,0.35)", accent: "#fca5a5" };
       case "success":
-        return successNotification;
+        return { bg: "rgba(92,184,92,0.15)", border: "rgba(92,184,92,0.35)", accent: "#86efac" };
       case "info":
-        return infoNotification;
+        return { bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.3)", accent: "#93c5fd" };
+      case "warning":
+        return { bg: "rgba(245,158,11,0.14)", border: "rgba(245,158,11,0.35)", accent: "#fcd34d" };
       default:
-        return notificationItem;
+        return { bg: "rgba(255,255,255,0.04)", border: t.cardBorder, accent: t.textMuted };
     }
   };
 
   return (
-    <div style={notificationPanel}>
-      {notifications.map((notification) => (
-        <div key={notification.id} style={getNotificationStyle(notification.type)}>
-          <button
-            style={closeButton}
-            onClick={() => onRemove(notification.id)}
-            aria-label="Close notification"
-          >
-            ×
-          </button>
-          <div>{notification.message}</div>
-          <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>
-            {new Date(notification.timestamp).toLocaleTimeString()}
-          </div>
+    <div
+      style={{
+        width: "min(100vw - 32px, 360px)",
+        maxHeight: "min(70vh, 420px)",
+        overflowY: "auto",
+        padding: 12,
+        borderRadius: 14,
+        background: t.card,
+        border: `1px solid ${t.cardBorder}`,
+        boxShadow: "0 24px 48px rgba(0,0,0,0.45), 0 0 1px rgba(92,184,92,0.2)",
+        backdropFilter: "blur(12px)",
+        animation: "notificationSlideIn 0.2s ease-out",
+      }}
+      role="dialog"
+      aria-label="Notifications"
+    >
+      {notifications.length === 0 ? (
+        <div style={{ padding: "20px 14px", textAlign: "center", color: t.textMuted, fontSize: 13 }}>
+          No notifications yet. System alerts will appear here.
         </div>
-      ))}
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {notifications.map((notification) => {
+            const tone = getTone(notification.type);
+            return (
+              <div
+                key={notification.id}
+                style={{
+                  position: "relative",
+                  padding: "12px 36px 12px 12px",
+                  borderRadius: 12,
+                  background: tone.bg,
+                  border: `1px solid ${tone.border}`,
+                  color: t.text,
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                }}
+              >
+                <button
+                  type="button"
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    background: "rgba(0,0,0,0.25)",
+                    border: "none",
+                    borderRadius: 8,
+                    color: tone.accent,
+                    cursor: "pointer",
+                    fontSize: 16,
+                    lineHeight: 1,
+                    padding: "4px 8px",
+                  }}
+                  onClick={() => onRemove(notification.id)}
+                  aria-label="Dismiss notification"
+                >
+                  ×
+                </button>
+                <div>{notification.message}</div>
+                <div style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>
+                  {new Date(notification.timestamp).toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

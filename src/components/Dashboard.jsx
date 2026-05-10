@@ -1,70 +1,86 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import PortalShell from "./portal/PortalShell.jsx";
+import ImageClassification from "./ImageClassification.jsx";
+import Settings from "./Settings.jsx";
+import UserManagement from "./UserManagement.jsx";
+import HotspotMappingPage from "./HotspotMappingPage.jsx";
+import { HotspotUiProvider } from "../context/HotspotUiContext.jsx";
+import { apiUrl } from "../config/api.js";
 import { Line, Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend } from "chart.js";
 import BinChart from "./BinChart.jsx";
-import WasteMap from "./WasteMap.jsx";
-import NotificationPanel from "./NotificationPanel.jsx";
-import ScenarioPlanner from "./ScenarioPlanner.jsx";
+import { DashboardNotificationProvider } from "../context/DashboardNotificationContext.jsx";
+import DashboardHome from "./DashboardHome.jsx";
+import AlertsNotifications from "./AlertsNotifications.jsx";
+import WasteReports from "./WasteReports.jsx";
+import DatasetManagement from "./DatasetManagement.jsx";
 import { countStats, getOverflowRisk } from "../utils/binHelpers.js";
 import { optimizePickupRoute } from "../utils/routeHelpers.js";
 import { municipalDepots } from "../data/municipalDepots.js";
 import { criticalAlertGuard } from "../utils/criticalAlertGuard.js";
 import { getCurrentTimeOfDay, sortBinsBySmartPriority, getSchedulingInsights } from "../utils/schedulingHelpers.js";
+import { portal as portalTheme } from "./portal/portalTheme.js";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
 
+const DASH = "/dashboard";
+
 const titleStyle = {
   margin: 0,
-  fontSize: "clamp(2rem, 3vw, 3.4rem)",
-  lineHeight: 1.02,
-  letterSpacing: "-0.04em",
+  fontSize: "clamp(1.35rem, 2.5vw, 2.05rem)",
+  lineHeight: 1.12,
+  letterSpacing: "-0.03em",
 };
 
-const pageContainer = {
-  maxWidth: 1380,
-  margin: "0 auto",
-  padding: "16px 12px 24px",
-  display: "grid",
-  gap: 16,
-  background: "linear-gradient(135deg, #0a0f1c 0%, #1a1f35 50%, #0a0f1c 100%)",
-  minHeight: "100vh",
-};
+const navLinkBtn = ({ isActive }) => ({
+  textDecoration: "none",
+  padding: "8px 12px",
+  borderRadius: 12,
+  fontSize: 12,
+  fontWeight: 700,
+  border: `1px solid ${isActive ? `rgba(${portalTheme.accentRgb}, 0.55)` : "rgba(255,255,255,0.14)"}`,
+  background: isActive ? `rgba(${portalTheme.accentRgb}, 0.18)` : "rgba(255,255,255,0.06)",
+  color: isActive ? "#ecfdf5" : "rgba(226,240,232,0.88)",
+});
 
 const heroCard = {
-  borderRadius: 24,
+  borderRadius: 18,
   overflow: "hidden",
-  background: "linear-gradient(135deg, rgba(108, 92, 231, 0.15) 0%, rgba(108, 92, 231, 0.05) 100%)",
-  border: "1px solid rgba(108, 92, 231, 0.3)",
-  boxShadow: "0 20px 60px rgba(108, 92, 231, 0.15)",
+  background:
+    "linear-gradient(135deg, rgba(50, 170, 104, 0.22) 0%, rgba(66, 126, 206, 0.16) 46%, rgba(255, 153, 61, 0.12) 100%)",
+  border: "1px solid rgba(130, 230, 180, 0.36)",
+  boxShadow: "0 20px 60px rgba(39, 136, 112, 0.25)",
   backdropFilter: "blur(20px)",
   position: "relative",
 };
 
 const heroInner = {
-  padding: "24px 28px",
+  padding: "14px 16px",
   display: "grid",
-  gap: 12,
+  gap: 8,
 };
 
 const heroSubtitle = {
   maxWidth: 620,
-  color: "rgba(243, 246, 255, 0.75)",
-  fontSize: "1rem",
-  lineHeight: 1.8,
+  color: "rgba(229, 250, 241, 0.86)",
+  fontSize: "0.92rem",
+  lineHeight: 1.55,
 };
 
 const statGrid = {
   display: "grid",
   gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-  gap: 12,
-  marginTop: 16,
+  gap: 8,
+  marginTop: 10,
 };
 
 const statCard = {
-  padding: "16px 18px",
-  borderRadius: 16,
-  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)",
-  border: "1px solid rgba(255, 255, 255, 0.1)",
+  padding: "11px 12px",
+  borderRadius: 14,
+  background:
+    "linear-gradient(135deg, rgba(121, 221, 162, 0.16) 0%, rgba(70, 129, 214, 0.14) 100%)",
+  border: "1px solid rgba(173, 244, 201, 0.25)",
   transition: "all 0.3s ease",
   "&:hover": {
     transform: "translateY(-2px)",
@@ -73,31 +89,25 @@ const statCard = {
 };
 
 const statLabel = {
-  color: "rgba(255, 255, 255, 0.62)",
+  color: "rgba(224, 255, 240, 0.76)",
   letterSpacing: "0.08em",
   textTransform: "uppercase",
-  fontSize: 12,
-  marginBottom: 8,
+  fontSize: 11,
+  marginBottom: 4,
 };
 
 const statValue = {
-  fontSize: "2rem",
+  fontSize: "1.45rem",
   fontWeight: 800,
   margin: 0,
 };
 
-const mainGrid = {
-  display: "grid",
-  gridTemplateColumns: "2.4fr 1fr",
-  gap: 16,
-  alignItems: "start",
-};
-
 const largeCard = {
-  borderRadius: 20,
-  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)",
-  border: "1px solid rgba(255, 255, 255, 0.12)",
-  boxShadow: "0 16px 40px rgba(0, 0, 0, 0.15)",
+  borderRadius: 16,
+  background:
+    "linear-gradient(145deg, rgba(97, 182, 129, 0.12) 0%, rgba(49, 110, 155, 0.1) 50%, rgba(255, 160, 92, 0.08) 100%)",
+  border: "1px solid rgba(155, 234, 194, 0.2)",
+  boxShadow: "0 16px 40px rgba(4, 20, 28, 0.35)",
   overflow: "hidden",
   transition: "all 0.3s ease",
 };
@@ -106,62 +116,71 @@ const cardHeader = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  padding: "16px 20px",
-  borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-  background: "linear-gradient(135deg, rgba(108, 92, 231, 0.1) 0%, rgba(108, 92, 231, 0.05) 100%)",
+  padding: "11px 14px",
+  borderBottom: "1px solid rgba(192, 246, 217, 0.15)",
+  background:
+    "linear-gradient(135deg, rgba(74, 187, 124, 0.18) 0%, rgba(64, 141, 221, 0.12) 100%)",
 };
 
 const cardTitle = {
-  margin: 0,
-  fontSize: 18,
-  fontWeight: 700,
-};
-
-const cardContent = {
-  padding: "16px 20px 20px",
-  display: "grid",
-  gap: 12,
-};
-
-const insightsGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: 16,
-};
-
-const insightCard = {
-  borderRadius: 20,
-  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)",
-  border: "1px solid rgba(255, 255, 255, 0.12)",
-  boxShadow: "0 12px 30px rgba(0, 0, 0, 0.12)",
-  overflow: "hidden",
-  transition: "all 0.3s ease",
-};
-
-const insightHeader = {
-  padding: "14px 18px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  background: "linear-gradient(135deg, rgba(108, 92, 231, 0.08) 0%, rgba(108, 92, 231, 0.03) 100%)",
-};
-
-const insightTitle = {
   margin: 0,
   fontSize: 16,
   fontWeight: 700,
 };
 
+const cardContent = {
+  padding: "12px 14px 14px",
+  display: "grid",
+  gap: 10,
+};
+
+const insightsGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+  gap: 10,
+};
+
+const homeInsightsGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
+  gap: 10,
+};
+
+const insightCard = {
+  borderRadius: 16,
+  background:
+    "linear-gradient(145deg, rgba(95, 187, 128, 0.11) 0%, rgba(72, 132, 221, 0.1) 62%, rgba(255, 170, 95, 0.08) 100%)",
+  border: "1px solid rgba(161, 236, 196, 0.2)",
+  boxShadow: "0 12px 30px rgba(5, 24, 33, 0.28)",
+  overflow: "hidden",
+  transition: "all 0.3s ease",
+};
+
+const insightHeader = {
+  padding: "10px 12px",
+  borderBottom: "1px solid rgba(191, 244, 215, 0.14)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  background:
+    "linear-gradient(135deg, rgba(71, 177, 119, 0.16) 0%, rgba(62, 131, 217, 0.1) 100%)",
+};
+
+const insightTitle = {
+  margin: 0,
+  fontSize: 14,
+  fontWeight: 700,
+};
+
 const insightBody = {
-  padding: "14px 18px 18px",
+  padding: "11px 12px 12px",
 };
 
 const statBadge = {
   padding: "10px 14px",
   borderRadius: 16,
-  background: "rgba(255,255,255,0.06)",
-  color: "#f4f7ff",
+  background: "rgba(189, 248, 216, 0.16)",
+  color: "#d9fff0",
   fontSize: 13,
   fontWeight: 700,
 };
@@ -186,8 +205,8 @@ const selectStyle = {
 
 const routeButton = {
   border: "none",
-  background: "linear-gradient(135deg, #84d2ff, #7a5bff)",
-  color: "#07112c",
+  background: "linear-gradient(135deg, #6de09f, #48b7a8)",
+  color: "#042019",
   padding: "14px 20px",
   borderRadius: 18,
   cursor: "pointer",
@@ -197,18 +216,18 @@ const routeButton = {
 
 const clearButton = {
   ...routeButton,
-  background: "rgba(255, 255, 255, 0.1)",
-  color: "#ffffff",
-  border: "1px solid rgba(255, 255, 255, 0.14)",
+  background: "rgba(201, 247, 221, 0.14)",
+  color: "#dcfff1",
+  border: "1px solid rgba(201, 247, 221, 0.25)",
 };
 
 const routeBar = {
   margin: "0",
-  padding: 16,
-  background: "rgba(13, 19, 37, 0.88)",
-  borderRadius: 22,
-  border: "1px solid rgba(255, 255, 255, 0.08)",
-  color: "rgba(237, 242, 255, 0.82)",
+  padding: 11,
+  background: "rgba(8, 31, 34, 0.86)",
+  borderRadius: 14,
+  border: "1px solid rgba(178, 241, 207, 0.2)",
+  color: "rgba(218, 255, 236, 0.9)",
 };
 
 const truckSelect = {
@@ -231,11 +250,11 @@ const binList = {
 
 const binCard = {
   display: "grid",
-  gap: 14,
-  padding: "18px 20px",
-  borderRadius: 20,
-  background: "rgba(255, 255, 255, 0.05)",
-  border: "1px solid rgba(255, 255, 255, 0.08)",
+  gap: 10,
+  padding: "12px 14px",
+  borderRadius: 14,
+  background: "rgba(111, 196, 149, 0.11)",
+  border: "1px solid rgba(173, 242, 202, 0.22)",
 };
 
 const binRow = {
@@ -262,7 +281,7 @@ const binMeta = {
 const progressBarBackground = {
   height: 12,
   borderRadius: 999,
-  background: "rgba(255, 255, 255, 0.1)",
+  background: "rgba(215, 255, 236, 0.13)",
   overflow: "hidden",
 };
 
@@ -270,13 +289,18 @@ const progressBarFill = (value) => ({
   width: `${value}%`,
   height: "100%",
   borderRadius: 999,
-  background: "linear-gradient(90deg, #74d0ff, #8a5bff)",
+  background:
+    value >= 90
+      ? "linear-gradient(90deg, #ff7c5f, #ff4f4f)"
+      : value >= 70
+      ? "linear-gradient(90deg, #ffce5f, #ff9d47)"
+      : "linear-gradient(90deg, #5de09a, #4cb7d8)",
 });
 
 const predictButton = {
   border: "none",
-  background: "#46d6ff",
-  color: "#081220",
+  background: "linear-gradient(135deg, #82e95e, #39c98a)",
+  color: "#053021",
   padding: "12px 16px",
   borderRadius: 14,
   cursor: "pointer",
@@ -342,7 +366,6 @@ export default function Dashboard({ initialBins, getPrediction }) {
   const [isAutoRouting, setIsAutoRouting] = useState(false);
   const [selectedDepot, setSelectedDepot] = useState(municipalDepots[0]);
   const [notifications, setNotifications] = useState([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [environmentalImpact, setEnvironmentalImpact] = useState({
     totalDistanceSaved: 15.7, // Start with some sample data
     totalFuelSaved: 1.3,
@@ -355,6 +378,8 @@ export default function Dashboard({ initialBins, getPrediction }) {
   });
   const [citizenReports, setCitizenReports] = useState([]);
   const [reportingLocation, setReportingLocation] = useState(null);
+  const [reportsSyncing, setReportsSyncing] = useState(false);
+  const [reportsReady, setReportsReady] = useState(false);
   const [selectedReplayMode, setSelectedReplayMode] = useState("current");
   const [weather, setWeather] = useState("sunny"); // Options: sunny, cloudy, rain, thunderstorm
   const [activeScenario, setActiveScenario] = useState(null);
@@ -446,13 +471,6 @@ export default function Dashboard({ initialBins, getPrediction }) {
     }, 5000);
     return () => clearInterval(id);
   }, [weather]);
-
-  useEffect(() => {
-    const timeId = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // Update every minute
-    return () => clearInterval(timeId);
-  }, []);
 
   useEffect(() => {
     const weatherId = setInterval(() => {
@@ -771,6 +789,57 @@ export default function Dashboard({ initialBins, getPrediction }) {
     setNotifications((prev) => [notification, ...prev].slice(0, 10)); // Keep only 10 most recent
   };
 
+  const callReportsApi = useCallback(async (path, options = {}) => {
+    const res = await fetch(apiUrl(path), {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.message || "Citizen report request failed");
+    }
+    return data;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncReports = async (quiet = false) => {
+      if (!quiet) {
+        setReportsSyncing(true);
+      }
+      try {
+        const data = await callReportsApi("/reports", { method: "GET" });
+        if (!cancelled) {
+          setCitizenReports(Array.isArray(data?.reports) ? data.reports : []);
+          setReportsReady(true);
+        }
+      } catch (error) {
+        if (!cancelled && !quiet) {
+          console.warn("Report sync failed", error);
+        }
+      } finally {
+        if (!cancelled && !quiet) {
+          setReportsSyncing(false);
+        }
+      }
+    };
+
+    syncReports(false);
+    const id = setInterval(() => {
+      syncReports(true);
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [callReportsApi]);
+
   const removeNotification = (id) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
@@ -804,33 +873,58 @@ export default function Dashboard({ initialBins, getPrediction }) {
     addNotification(`${binName} unassigned from truck`, "info");
   };
 
-  const handleReportIssue = (type) => {
+  const handleReportIssue = async (type) => {
     if (!reportingLocation) {
       addNotification("Click on the map to select a location for reporting.", "info");
       return;
     }
-    const report = {
-      id: Date.now(),
-      type,
-      location: reportingLocation,
-      timestamp: new Date(),
-      status: "open",
-    };
-    setCitizenReports((prev) => [report, ...prev]);
-    setReportingLocation(null);
-    addNotification(`Issue reported: ${type} at location`, "success");
+
+    try {
+      setReportsSyncing(true);
+      await callReportsApi("/reports", {
+        method: "POST",
+        body: JSON.stringify({
+          type,
+          location: reportingLocation,
+        }),
+      });
+      const data = await callReportsApi("/reports", { method: "GET" });
+      setCitizenReports(Array.isArray(data?.reports) ? data.reports : []);
+      setReportingLocation(null);
+      addNotification(`Issue reported: ${type} at location`, "success");
+    } catch (error) {
+      addNotification(`Failed to report issue: ${error?.message || "unknown error"}`, "critical");
+    } finally {
+      setReportsSyncing(false);
+    }
   };
 
-  const removeReport = (id) => {
-    setCitizenReports((prev) => prev.filter((r) => r.id !== id));
-    addNotification("Report removed.", "info");
+  const removeReport = async (id) => {
+    try {
+      setReportsSyncing(true);
+      await callReportsApi(`/reports/${id}`, { method: "DELETE" });
+      const data = await callReportsApi("/reports", { method: "GET" });
+      setCitizenReports(Array.isArray(data?.reports) ? data.reports : []);
+      addNotification("Report removed.", "info");
+    } catch (error) {
+      addNotification(`Failed to remove report: ${error?.message || "unknown error"}`, "critical");
+    } finally {
+      setReportsSyncing(false);
+    }
   };
 
-  const markReportResolved = (id) => {
-    setCitizenReports((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: "resolved" } : r))
-    );
-    addNotification("Report marked as resolved.", "success");
+  const markReportResolved = async (id) => {
+    try {
+      setReportsSyncing(true);
+      await callReportsApi(`/reports/${id}/resolve`, { method: "PATCH" });
+      const data = await callReportsApi("/reports", { method: "GET" });
+      setCitizenReports(Array.isArray(data?.reports) ? data.reports : []);
+      addNotification("Report marked as resolved.", "success");
+    } catch (error) {
+      addNotification(`Failed to resolve report: ${error?.message || "unknown error"}`, "critical");
+    } finally {
+      setReportsSyncing(false);
+    }
   };
 
   const handleMapLocationClick = (lat, lng) => {
@@ -838,585 +932,367 @@ export default function Dashboard({ initialBins, getPrediction }) {
   };
 
   return (
-    <div style={pageContainer}>
-      <ScenarioPlanner
-        bins={bins}
-        selectedDepot={selectedDepot}
-        onScenarioChange={setActiveScenario}
-      />
+    <DashboardNotificationProvider notifications={notifications} onRemove={removeNotification}>
+    <HotspotUiProvider>
+    <PortalShell>
+      <>
+      <Routes>
+        <Route path="classify" element={<ImageClassification />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="alerts" element={<AlertsNotifications />} />
+        <Route path="reports" element={<WasteReports />} />
+        <Route path="datasets" element={<DatasetManagement />} />
+        <Route
+          index
+          element={
+            <DashboardHome
+              bins={activeBins}
+              routeData={routeData}
+              depots={municipalDepots}
+              selectedDepot={selectedDepot}
+              citizenReports={citizenReports}
+              hotspotCount={hotspotBins.length}
+              onMapLocationClick={() => {}}
+            />
+          }
+        />
 
-      <div style={heroCard}>
-        <div style={heroInner}>
-          <div style={{ display: "grid", gap: 16 }}>
-            <h2 style={titleStyle}>Meghalaya Smart Waste Dashboard</h2>
-            <p style={heroSubtitle}>
-              Real-time waste bin monitoring with route optimization, predictive fill estimates, and a responsive map.
-              Monitor pickup demand and keep services ahead of every full bin.
-            </p>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              padding: "12px 16px",
-              borderRadius: 16,
-              background: "rgba(255, 255, 255, 0.06)",
-              border: "1px solid rgba(255, 255, 255, 0.08)"
-            }}>
-              <div style={{ fontSize: "1.1rem", fontWeight: 600, color: "#84d2ff" }}>
-                🕐 {currentTime.toLocaleTimeString()} ({timeOfDay})
-              </div>
-              <div style={{ fontSize: "0.9rem", color: "rgba(255, 255, 255, 0.75)" }}>
-                🌦️ {weather.charAt(0).toUpperCase() + weather.slice(1)} - Fill rate: {weather === "sunny" ? "1.0x" : weather === "cloudy" ? "1.2x" : weather === "rain" ? "1.5x" : "2.0x"}
-              </div>
-              {(isSelfHealing || isAutoRouting) && (
-                <div style={{ fontSize: "0.9rem", color: "#74d0ff", fontWeight: 600 }}>
-                  🤖 {isSelfHealing ? "SELF-HEALING ACTIVE" : "AUTO-ROUTING ACTIVE"}
+        <Route
+          path="bins"
+          element={
+            <div style={largeCard}>
+              <div style={cardHeader}>
+                <div>
+                  <h3 style={cardTitle}>
+                    {selectedReplayMode === "current" ? "Bins & ML predictions" : `${selectedReplayMode} replay`}
+                  </h3>
+                  <p style={{ margin: 0, color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
+                    Full-width list with scroll — safe to grow as you add bins.
+                  </p>
                 </div>
-              )}
-              <div style={{ fontSize: "0.9rem", color: "rgba(255, 255, 255, 0.75)" }}>
-                Prioritizing: {schedulingInsights.topPriorityAreas.join(" & ")} areas
-                ({schedulingInsights.highPriorityBins} high priority bins)
+                <NavLink to={DASH} style={navLinkBtn}>
+                  ← Overview
+                </NavLink>
               </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>Historical Replay:</span>
-                {[
-                  { key: "current", label: "Live" },
-                  { key: "morning", label: "Morning" },
-                  { key: "evening", label: "Evening" },
-                ].map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setSelectedReplayMode(option.key)}
-                    style={{
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      background: selectedReplayMode === option.key ? "rgba(132, 210, 255, 0.2)" : "rgba(255,255,255,0.06)",
-                      color: "#f4f7ff",
-                      padding: "10px 14px",
-                      borderRadius: 14,
-                      cursor: "pointer",
-                      fontWeight: 700,
-                      fontSize: 12,
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              {hotspotBins.length > 0 && (
-                <div style={{ fontSize: "0.85rem", color: "#ffd166", fontWeight: 600 }}>
-                  🔥 Hotspot: {hotspotNames}
-                </div>
-              )}
-              {overflowWarning && (
-                <div style={{ fontSize: "0.85rem", color: "#ff9f43", fontWeight: 600 }}>
-                  ⚠️ {overflowWarning}
-                </div>
-              )}
-              {environmentalImpact.routesOptimized > 0 && (
-                <div style={{ fontSize: "0.85rem", color: "#7ff3a4", fontWeight: 500 }}>
-                  🌱 Today: {formatImpactNumber(environmentalImpact.totalDistanceSaved, 'km')} saved, {formatImpactNumber(environmentalImpact.totalCO2Reduced, 'kg')} CO₂ reduced
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={statGrid}>
-            <div style={statCard}>
-              <span style={statLabel}>Total Bins</span>
-              <p style={statValue}>{total}</p>
-            </div>
-            <div style={statCard}>
-              <span style={statLabel}>Full Bins</span>
-              <p style={statValue}>{full}</p>
-            </div>
-            <div style={statCard}>
-              <span style={statLabel}>Critical Alerts</span>
-              <p style={statValue}>{critical}</p>
-            </div>
-            <div style={statCard}>
-              <span style={statLabel}>Offline Bins</span>
-              <p style={{ ...statValue, color: offlineCount > 0 ? "#ff6b6b" : "#7ff3a4" }}>{offlineCount}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={insightsGrid}>
-        <div style={insightCard}>
-          <div style={insightHeader}>
-            <h4 style={insightTitle}>Daily Waste Stats</h4>
-            <span style={statBadge}>{selectedReplayMode === "current" ? "Today" : selectedReplayMode === "morning" ? "Morning" : "Evening"}</span>
-          </div>
-          <div style={insightBody}>
-            <div style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Total waste</span>
-                <strong>{Math.round(wastedToday)} kg</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Bins collected</span>
-                <strong>{pickupCount}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Average temp</span>
-                <strong>{avgTemp}°C</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Alerts raised</span>
-                <strong>{Math.max(0, critical - 1)}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={insightCard}>
-          <div style={insightHeader}>
-            <h4 style={insightTitle}>Trends</h4>
-            <span style={statBadge}>Weekly</span>
-          </div>
-          <div style={insightBody}>
-            <Line data={trendData} options={trendOptions} />
-          </div>
-        </div>
-        <div style={insightCard}>
-          <div style={insightHeader}>
-            <h4 style={insightTitle}>Area Comparison</h4>
-            <span style={statBadge}>Live</span>
-          </div>
-          <div style={insightBody}>
-            <Bar data={areaComparisonData} options={areaOptions} />
-          </div>
-        </div>
-        <div style={insightCard}>
-          <div style={insightHeader}>
-            <h4 style={insightTitle}>🔥 Hotspot Detection</h4>
-            <span style={statBadge}>Live</span>
-          </div>
-          <div style={insightBody}>
-            <div style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Hotspot bins</span>
-                <strong>{hotspotBins.length}</strong>
-              </div>
-              <div style={{ color: "rgba(255,255,255,0.78)", minHeight: 72 }}>
-                {hotspotBins.length > 0 ? hotspotNames : "No recurring hotspot locations yet."}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>High-fill streak</span>
-                <strong>{hotspotBins.length > 0 ? "Detected" : "Monitoring"}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={insightCard}>
-          <div style={insightHeader}>
-            <h4 style={insightTitle}>⚠️ Overflow Risk</h4>
-            <span style={statBadge}>Predictive</span>
-          </div>
-          <div style={insightBody}>
-            <div style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>At-risk bins</span>
-                <strong>{overflowRiskBins.length}</strong>
-              </div>
-              <div style={{ color: "rgba(255,255,255,0.78)", minHeight: 72 }}>
-                {overflowRiskBins.length > 0
-                  ? overflowRiskBins
-                      .slice(0, 3)
-                      .map((bin) => `${bin.name} in ${bin.overflowRisk.hours}h`)
-                      .join(" • ")
-                  : "No overflow risk detected in the next 4 hours."}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Prediction basis</span>
-                <strong>Fill rate</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={insightCard}>
-          <div style={insightHeader}>
-            <h4 style={insightTitle}>🌱 Environmental Impact</h4>
-            <span style={statBadge}>Today</span>
-          </div>
-          <div style={insightBody}>
-            <div style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>🚛 Distance Saved</span>
-                <strong style={{ color: "#7ff3a4" }}>{formatImpactNumber(environmentalImpact.totalDistanceSaved, 'km')}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>⛽ Fuel Saved</span>
-                <strong style={{ color: "#ffb86c" }}>{formatImpactNumber(environmentalImpact.totalFuelSaved, 'L')}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>🌿 CO₂ Reduced</span>
-                <strong style={{ color: "#74d0ff" }}>{formatImpactNumber(environmentalImpact.totalCO2Reduced, 'kg')}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Routes Optimized</span>
-                <strong>{environmentalImpact.routesOptimized}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>🚨 Auto Routes</span>
-                <strong style={{ color: "#ff6b6b" }}>{environmentalImpact.autoRoutesTriggered}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>🔄 Self-Healing</span>
-                <strong style={{ color: "#74d0ff" }}>{environmentalImpact.selfHealingEvents}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={insightCard}>
-          <div style={insightHeader}>
-            <h4 style={insightTitle}>🌦️ Weather Impact</h4>
-            <span style={statBadge}>{weather.charAt(0).toUpperCase() + weather.slice(1)}</span>
-          </div>
-          <div style={insightBody}>
-            <div style={{ display: "grid", gap: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Current</span>
-                <strong style={{ color: weather === "sunny" ? "#ffd166" : weather === "cloudy" ? "#d0d0d0" : weather === "rain" ? "#6dd5ff" : "#ff7043" }}>
-                  {weather === "sunny" ? "☀️ Sunny" : weather === "cloudy" ? "☁️ Cloudy" : weather === "rain" ? "🌧️ Rain" : "⛈️ Storm"}
-                </strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Fill Multiplier</span>
-                <strong style={{ color: weather === "rain" || weather === "thunderstorm" ? "#ff6b6b" : "#fff" }}>
-                  {weather === "sunny" ? "1.0x" : weather === "cloudy" ? "1.2x" : weather === "rain" ? "1.5x" : "2.0x"}
-                </strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Overflow Risk</span>
-                <strong style={{ color: weather === "thunderstorm" ? "#ff6b6b" : weather === "rain" ? "#ff9f43" : "#7ff3a4" }}>
-                  {weather === "thunderstorm" ? "🔴 Critical" : weather === "rain" ? "🟠 High" : "🟢 Normal"}
-                </strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
-                <span>At-risk bins</span>
-                <strong>{activeBins.filter(b => b.fill > 70).length}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={mainGrid}>
-        <div style={largeCard}>
-          <div style={cardHeader}>
-            <div>
-              <h3 style={cardTitle}>Route Control</h3>
-              <p style={{ margin: 0, color: "rgba(255,255,255,0.7)", fontSize: 14 }}>
-                Fine-tune the current depot and optimize pickup when bins are nearly full.
-              </p>
-            </div>
-          </div>
-          <div style={cardContent}>
-            <div style={controlRow}>
-              <select
-                value={selectedDepot.name}
-                onChange={(e) => {
-                  const depot = municipalDepots.find((d) => d.name === e.target.value);
-                  setSelectedDepot(depot);
-                }}
-                style={selectStyle}
-              >
-                {municipalDepots.map((depot) => (
-                  <option key={depot.name} value={depot.name}>
-                    {depot.name} ({depot.region})
-                  </option>
-                ))}
-              </select>
-              <button style={routeButton} onClick={handleOptimizeRoute} disabled={isRouting}>
-                {isRouting ? "Optimizing…" : "Optimize Route"}
-              </button>
-            </div>
-            <div style={routeBar}>
-              {isSelfHealing && <span style={{ color: "#74d0ff", marginRight: 8 }}>🔄 SELF-HEALING...</span>}
-              {isAutoRouting && <span style={{ color: "#ff6b6b", marginRight: 8 }}>🔄 AUTO-ROUTING...</span>}
-              {routeMessage}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gap: 24 }}>
-          <div style={largeCard}>
-            <div style={cardHeader}>
-              <h3 style={cardTitle}>{selectedReplayMode === "current" ? "Live Fill Predictions" : `${selectedReplayMode.charAt(0).toUpperCase() + selectedReplayMode.slice(1)} Replay`}</h3>
-              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
-                Tap a bin to forecast its fill percentage in 2 hours.
-              </span>
-            </div>
-            <div style={cardContent}>
-              <div style={binList}>
-                {activeBins.map((bin) => (
-                  <div key={bin.name} style={{
-                    ...binCard,
-                    opacity: bin.isOnline ? 1 : 0.6,
-                    border: bin.isOnline ? binCard.border : "1px solid rgba(255, 107, 107, 0.3)",
-                  }}>
-                    <div style={binRow}>
-                      <div>
-                        <p style={binName}>
-                          {bin.name}
-                          {!bin.isOnline && <span style={{ color: "#ff6b6b", marginLeft: 8, fontSize: "0.8em" }}>📡 OFFLINE</span>}
-                        </p>
-                        <p style={binMeta}>
-                          Current fill: {bin.fill}% · {bin.assigned ? `Assigned to ${bin.assignedTruck}` : "Unassigned"}
-                          {!bin.isOnline && ` · Last seen: ${Math.round((Date.now() - bin.lastSeen.getTime()) / 60000)}m ago`}
-                        </p>
-                      </div>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          style={predictButton}
-                          onClick={() => handlePrediction(bin)}
-                        >
-                          Predict Future
-                        </button>
-                        <button
-                          type="button"
-                          style={{
-                            border: "none",
-                            background: bin.assigned ? "#6bd1ff" : "#ff6b6b",
-                            color: "#081220",
-                            padding: "12px 16px",
-                            borderRadius: 14,
-                            cursor: "pointer",
-                            fontWeight: 700,
-                          }}
-                          onClick={() => setAssignMenuBin(bin.name)}
-                        >
-                          {bin.assigned ? "Change truck" : "Assign"}
-                        </button>
-                        {bin.assigned && (
-                          <button
-                            type="button"
-                            style={{
-                              border: "none",
-                              background: "#ffb74d",
-                              color: "#081220",
-                              padding: "12px 16px",
-                              borderRadius: 14,
-                              cursor: "pointer",
-                              fontWeight: 700,
-                            }}
-                            onClick={() => handleCancelAssignment(bin.name)}
-                          >
-                            Unassign
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {assignMenuBin === bin.name && (
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
-                        {trucks.map((truck) => (
-                          <button
-                            key={truck.id}
-                            type="button"
-                            style={{
-                              border: "none",
-                              background: bin.assigned && bin.assignedTruckId === truck.id ? "#5bff96" : "#4f71ff",
-                              color: "#fff",
-                              padding: "10px 14px",
-                              borderRadius: 14,
-                              cursor: "pointer",
-                              fontWeight: 700,
-                            }}
-                            onClick={() => handleAssign(bin.name, truck)}
-                          >
-                            {truck.name}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          style={{
-                            border: "1px solid rgba(255,255,255,0.18)",
-                            background: "rgba(255,255,255,0.08)",
-                            color: "#fff",
-                            padding: "10px 14px",
-                            borderRadius: 14,
-                            cursor: "pointer",
-                            fontWeight: 700,
-                          }}
-                          onClick={() => setAssignMenuBin(null)}
-                        >
-                          Close
-                        </button>
-                      </div>
-                    )}
-                    <div style={progressBarBackground}>
-                      <div style={progressBarFill(bin.fill)} />
-                    </div>
-                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10, color: "rgba(255,255,255,0.72)", fontSize: 13 }}>
-                      <span>🌡️ {bin.temperature}°C</span>
-                      <span>🟠 Gas {bin.gas}%</span>
-                      <span>⏱️ Last collected {bin.lastCollected}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={largeCard}>
-            <div style={cardHeader}>
-              <h3 style={cardTitle}>Bin Fill Distribution</h3>
-            </div>
-            <div style={{ padding: "20px 24px 24px" }}>
-              <BinChart bins={activeBins} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={largeCard}>
-        <div style={cardHeader}>
-          <h3 style={cardTitle}>📲 Citizen Reporting</h3>
-          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
-            Click on the map, then report an issue
-          </span>
-        </div>
-        <div style={cardContent}>
-          {reportingLocation && (
-            <div style={{
-              padding: "12px 14px",
-              borderRadius: 14,
-              background: "rgba(132, 210, 255, 0.2)",
-              border: "1px solid rgba(132, 210, 255, 0.4)",
-              marginBottom: 14,
-              fontSize: 13,
-              color: "#84d2ff"
-            }}>
-              📍 Location selected: {reportingLocation.lat.toFixed(3)}, {reportingLocation.lng.toFixed(3)}
-            </div>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <button
-              style={{
-                border: "none",
-                background: "linear-gradient(135deg, #ff6b6b, #ff8787)",
-                color: "#fff",
-                padding: "14px 16px",
-                borderRadius: 14,
-                cursor: reportingLocation ? "pointer" : "not-allowed",
-                fontWeight: 700,
-                opacity: reportingLocation ? 1 : 0.5,
-                transition: "transform 0.18s"
-              }}
-              onClick={() => handleReportIssue("Overflow")}
-              disabled={!reportingLocation}
-            >
-              🚨 Overflow
-            </button>
-            <button
-              style={{
-                border: "none",
-                background: "linear-gradient(135deg, #ffd166, #ffb84d)",
-                color: "#081220",
-                padding: "14px 16px",
-                borderRadius: 14,
-                cursor: reportingLocation ? "pointer" : "not-allowed",
-                fontWeight: 700,
-                opacity: reportingLocation ? 1 : 0.5,
-                transition: "transform 0.18s"
-              }}
-              onClick={() => handleReportIssue("Dirty Area")}
-              disabled={!reportingLocation}
-            >
-              🧹 Dirty Area
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div style={largeCard}>
-        <div style={cardHeader}>
-          <h3 style={cardTitle}>🔔 Active Reports ({citizenReports.filter(r => r.status === "open").length})</h3>
-          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
-            Community-reported issues
-          </span>
-        </div>
-        <div style={cardContent}>
-          {citizenReports.length === 0 ? (
-            <div style={{ color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "20px 0" }}>
-              No reports yet. Help keep the area clean!
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 12 }}>
-              {citizenReports.map((report) => (
-                <div
-                  key={report.id}
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    background: report.status === "resolved" ? "rgba(127, 243, 164, 0.1)" : "rgba(255, 107, 107, 0.1)",
-                    border: `1px solid ${report.status === "resolved" ? "rgba(127, 243, 164, 0.3)" : "rgba(255, 107, 107, 0.3)"}`,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    opacity: report.status === "resolved" ? 0.7 : 1
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      {report.type === "Overflow" ? "🚨" : "🧹"} {report.type}
-                    </div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
-                      {report.timestamp.toLocaleTimeString()}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {report.status === "open" && (
-                      <button
+              <div style={cardContent}>
+                <div style={{ maxHeight: "min(72vh, 920px)", overflowY: "auto", paddingRight: 4 }}>
+                  <div style={binList}>
+                    {activeBins.map((bin) => (
+                      <div
+                        key={bin.name}
                         style={{
-                          border: "none",
-                          background: "rgba(127, 243, 164, 0.3)",
-                          color: "#7ff3a4",
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          cursor: "pointer",
-                          fontSize: 11,
-                          fontWeight: 600
+                          ...binCard,
+                          opacity: bin.isOnline ? 1 : 0.6,
+                          border: bin.isOnline ? binCard.border : "1px solid rgba(255, 107, 107, 0.3)",
                         }}
-                        onClick={() => markReportResolved(report.id)}
                       >
-                        ✓ Resolve
-                      </button>
-                    )}
-                    <button
-                      style={{
-                        border: "none",
-                        background: "rgba(255, 107, 107, 0.2)",
-                        color: "#ff6b6b",
-                        padding: "6px 10px",
-                        borderRadius: 8,
-                        cursor: "pointer",
-                        fontSize: 11,
-                        fontWeight: 600
-                      }}
-                      onClick={() => removeReport(report.id)}
-                    >
-                      ✕ Remove
-                    </button>
+                        <div style={binRow}>
+                          <div>
+                            <p style={binName}>
+                              {bin.name}
+                              {!bin.isOnline && (
+                                <span style={{ color: "#ff6b6b", marginLeft: 8, fontSize: "0.8em" }}>📡 OFFLINE</span>
+                              )}
+                            </p>
+                            <p style={binMeta}>
+                              Current fill: {bin.fill}% · {bin.assigned ? `Assigned to ${bin.assignedTruck}` : "Unassigned"}
+                              {!bin.isOnline && ` · Last seen: ${Math.round((Date.now() - bin.lastSeen.getTime()) / 60000)}m ago`}
+                            </p>
+                          </div>
+                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                            <button type="button" style={predictButton} onClick={() => handlePrediction(bin)}>
+                              Predict Future
+                            </button>
+                            <button
+                              type="button"
+                              style={{
+                                border: "none",
+                                background: bin.assigned ? "#6bd1ff" : "#ff6b6b",
+                                color: "#081220",
+                                padding: "10px 14px",
+                                borderRadius: 12,
+                                cursor: "pointer",
+                                fontWeight: 700,
+                              }}
+                              onClick={() => setAssignMenuBin(bin.name)}
+                            >
+                              {bin.assigned ? "Change truck" : "Assign"}
+                            </button>
+                            {bin.assigned && (
+                              <button
+                                type="button"
+                                style={{
+                                  border: "none",
+                                  background: "#ffb74d",
+                                  color: "#081220",
+                                  padding: "10px 14px",
+                                  borderRadius: 12,
+                                  cursor: "pointer",
+                                  fontWeight: 700,
+                                }}
+                                onClick={() => handleCancelAssignment(bin.name)}
+                              >
+                                Unassign
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {assignMenuBin === bin.name && (
+                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+                            {trucks.map((truck) => (
+                              <button
+                                key={truck.id}
+                                type="button"
+                                style={{
+                                  border: "none",
+                                  background: bin.assigned && bin.assignedTruckId === truck.id ? "#5bff96" : "#4f71ff",
+                                  color: "#fff",
+                                  padding: "8px 12px",
+                                  borderRadius: 12,
+                                  cursor: "pointer",
+                                  fontWeight: 700,
+                                }}
+                                onClick={() => handleAssign(bin.name, truck)}
+                              >
+                                {truck.name}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              style={{
+                                border: "1px solid rgba(255,255,255,0.18)",
+                                background: "rgba(255,255,255,0.08)",
+                                color: "#fff",
+                                padding: "8px 12px",
+                                borderRadius: 12,
+                                cursor: "pointer",
+                                fontWeight: 700,
+                              }}
+                              onClick={() => setAssignMenuBin(null)}
+                            >
+                              Close
+                            </button>
+                          </div>
+                        )}
+                        <div style={progressBarBackground}>
+                          <div style={progressBarFill(bin.fill)} />
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 12,
+                            flexWrap: "wrap",
+                            marginTop: 8,
+                            color: "rgba(255,255,255,0.72)",
+                            fontSize: 12,
+                          }}
+                        >
+                          <span>🌡️ {bin.temperature}°C</span>
+                          <span>🟠 Gas {bin.gas}%</span>
+                          <span>⏱️ {bin.lastCollected}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          }
+        />
 
-      <div style={largeCard}>
-        <div style={cardHeader}>
-          <h3 style={cardTitle}>Live Waste Map</h3>
-        </div>
-        <div style={{ height: 560 }}>
-          <WasteMap bins={activeBins} routeData={routeData} depots={municipalDepots} selectedDepot={selectedDepot} citizenReports={citizenReports} onLocationClick={handleMapLocationClick} />
-        </div>
-      </div>
-      <NotificationPanel notifications={notifications} onRemove={removeNotification} />
-    </div>
+        <Route
+          path="field"
+          element={
+            <HotspotMappingPage
+              bins={activeBins}
+              citizenReports={citizenReports}
+              routeData={routeData}
+              depots={municipalDepots}
+              selectedDepot={selectedDepot}
+              reportingLocation={reportingLocation}
+              reportsSyncing={reportsSyncing}
+              reportsReady={reportsReady}
+              onLocationClick={handleMapLocationClick}
+              onReportOverflow={() => handleReportIssue("Overflow")}
+              onReportDirty={() => handleReportIssue("Dirty Area")}
+              onResolveReport={markReportResolved}
+              onRemoveReport={removeReport}
+            />
+          }
+        />
+
+        <Route
+          path="analytics"
+          element={
+            <>
+              <div style={insightsGrid}>
+                <div style={insightCard}>
+                  <div style={insightHeader}>
+                    <h4 style={insightTitle}>Daily Waste Stats</h4>
+                    <span style={statBadge}>
+                      {selectedReplayMode === "current"
+                        ? "Today"
+                        : selectedReplayMode === "morning"
+                          ? "Morning"
+                          : "Evening"}
+                    </span>
+                  </div>
+                  <div style={insightBody}>
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>Total waste</span>
+                        <strong>{Math.round(wastedToday)} kg</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>Bins collected</span>
+                        <strong>{pickupCount}</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>Average temp</span>
+                        <strong>{avgTemp}°C</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>Alerts raised</span>
+                        <strong>{Math.max(0, critical - 1)}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div style={insightCard}>
+                  <div style={insightHeader}>
+                    <h4 style={insightTitle}>Trends</h4>
+                    <span style={statBadge}>Weekly</span>
+                  </div>
+                  <div style={insightBody}>
+                    <Line data={trendData} options={trendOptions} />
+                  </div>
+                </div>
+                <div style={insightCard}>
+                  <div style={insightHeader}>
+                    <h4 style={insightTitle}>Area Comparison</h4>
+                    <span style={statBadge}>Live</span>
+                  </div>
+                  <div style={insightBody}>
+                    <Bar data={areaComparisonData} options={areaOptions} />
+                  </div>
+                </div>
+                <div style={insightCard}>
+                  <div style={insightHeader}>
+                    <h4 style={insightTitle}>🔥 Hotspot Detection</h4>
+                    <span style={statBadge}>Live</span>
+                  </div>
+                  <div style={insightBody}>
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>Hotspot bins</span>
+                        <strong>{hotspotBins.length}</strong>
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.78)", minHeight: 56 }}>
+                        {hotspotBins.length > 0 ? hotspotNames : "No recurring hotspot locations yet."}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div style={insightCard}>
+                  <div style={insightHeader}>
+                    <h4 style={insightTitle}>⚠️ Overflow Risk</h4>
+                    <span style={statBadge}>Predictive</span>
+                  </div>
+                  <div style={insightBody}>
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>At-risk bins</span>
+                        <strong>{overflowRiskBins.length}</strong>
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.78)", minHeight: 56 }}>
+                        {overflowRiskBins.length > 0
+                          ? overflowRiskBins
+                              .slice(0, 5)
+                              .map((bin) => `${bin.name} in ${bin.overflowRisk.hours}h`)
+                              .join(" • ")
+                          : "No overflow risk detected in the next 4 hours."}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div style={insightCard}>
+                  <div style={insightHeader}>
+                    <h4 style={insightTitle}>🌱 Environmental Impact</h4>
+                    <span style={statBadge}>Today</span>
+                  </div>
+                  <div style={insightBody}>
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>🚛 Distance Saved</span>
+                        <strong style={{ color: "#7ff3a4" }}>
+                          {formatImpactNumber(environmentalImpact.totalDistanceSaved, "km")}
+                        </strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>⛽ Fuel Saved</span>
+                        <strong style={{ color: "#ffb86c" }}>
+                          {formatImpactNumber(environmentalImpact.totalFuelSaved, "L")}
+                        </strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>🌿 CO₂ Reduced</span>
+                        <strong style={{ color: "#74d0ff" }}>
+                          {formatImpactNumber(environmentalImpact.totalCO2Reduced, "kg")}
+                        </strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>Routes Optimized</span>
+                        <strong>{environmentalImpact.routesOptimized}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div style={insightCard}>
+                  <div style={insightHeader}>
+                    <h4 style={insightTitle}>🌦️ Weather Impact</h4>
+                    <span style={statBadge}>{weather.charAt(0).toUpperCase() + weather.slice(1)}</span>
+                  </div>
+                  <div style={insightBody}>
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>Overflow Risk</span>
+                        <strong
+                          style={{
+                            color: weather === "thunderstorm" ? "#ff6b6b" : weather === "rain" ? "#ff9f43" : "#7ff3a4",
+                          }}
+                        >
+                          {weather === "thunderstorm" ? "🔴 Critical" : weather === "rain" ? "🟠 High" : "🟢 Normal"}
+                        </strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                        <span>At-risk bins</span>
+                        <strong>{activeBins.filter((b) => b.fill > 70).length}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={largeCard}>
+                <div style={cardHeader}>
+                  <h3 style={cardTitle}>Bin Fill Distribution</h3>
+                </div>
+                <div style={{ padding: "14px 16px 16px" }}>
+                  <BinChart bins={activeBins} />
+                </div>
+              </div>
+            </>
+          }
+        />
+
+        <Route path="*" element={<Navigate to={DASH} replace />} />
+      </Routes>
+
+      </>
+    </PortalShell>
+    </HotspotUiProvider>
+    </DashboardNotificationProvider>
   );
+
 }

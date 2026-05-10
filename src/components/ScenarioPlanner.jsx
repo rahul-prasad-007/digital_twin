@@ -166,8 +166,8 @@ export default function ScenarioPlanner({ bins, selectedDepot, onScenarioChange 
       borderRadius: 16,
       background: "rgba(255, 255, 255, 0.05)",
       border: "1px solid rgba(255, 255, 255, 0.1)",
-      padding: 20,
-      marginBottom: 20,
+      padding: 12,
+      marginBottom: 10,
     }}>
       <div style={{ marginBottom: 16 }}>
         <h3 style={{
