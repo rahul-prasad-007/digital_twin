@@ -105,7 +105,7 @@ function FeatureStripCard({ icon, title, description }) {
   );
 }
 
-export default function Landing() {
+export default function Index() {
   const [activeNav, setActiveNav] = useState("home");
 
   const go = useCallback((section, id) => {

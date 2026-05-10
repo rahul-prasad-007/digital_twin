@@ -12,6 +12,7 @@
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env NODE_ENV=development electron electron/main.cjs\"",
     "electron:full": "concurrently -k \"npm run dev:api\" \"npm run electron:dev\"",
     "build": "vite build",
+    "build:github": "cross-env GH_PAGES=true vite build",
     "electron:start": "cross-env NODE_ENV=production electron electron/main.cjs",
     "electron:preview": "vite build && npm run electron:start",
     "preview": "vite preview"
