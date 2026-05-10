@@ -211,6 +211,18 @@ export default function WasteMap({ bins, routeData, depots, selectedDepot, citiz
     reportMarkersRef.current = [];
 
     citizenReports.forEach((report) => {
+      const lat = Number(report?.location?.lat);
+      const lng = Number(report?.location?.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+
+      const parsedTime = report?.timestamp ? new Date(report.timestamp) : null;
+      const displayTime =
+        parsedTime && !Number.isNaN(parsedTime.getTime())
+          ? parsedTime.toLocaleTimeString()
+          : "Unknown time";
+
       const icon = L.divIcon({
         className: "report-marker",
         html: `<div style="display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:${report.type === "Overflow" ? "linear-gradient(135deg,#ff6b6b,#ff8787)" : "linear-gradient(135deg,#ffd166,#ffb84d)"};box-shadow:0 12px 24px rgba(0,0,0,0.3);color:#fff;font-size:1.1rem;border:3px solid #fff;">${report.type === "Overflow" ? "🚨" : "🧹"}</div>`,
@@ -218,13 +230,13 @@ export default function WasteMap({ bins, routeData, depots, selectedDepot, citiz
         iconAnchor: [20, 20],
       });
 
-      const marker = L.marker([report.location.lat, report.location.lng], {
+      const marker = L.marker([lat, lng], {
         icon,
         zIndexOffset: 500,
       }).addTo(map);
 
       marker.bindPopup(
-        `<b>${report.type}</b><br>Reported: ${report.timestamp.toLocaleTimeString()}<br>Status: ${report.status}`
+        `<b>${report.type}</b><br>Reported: ${displayTime}<br>Status: ${report.status}`
       );
 
       reportMarkersRef.current.push(marker);

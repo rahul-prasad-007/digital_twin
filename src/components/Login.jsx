@@ -1,21 +1,46 @@
 import { useState } from "react";
+import BrandLogo from "./BrandLogo.jsx";
 import "./Login.css";
 
-export default function Login({ onSuccess }) {
+export default function Login({ onSuccess, onTokenReceived }) {
   const [mode, setMode] = useState("login");
   const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     const form = e.target;
 
     if (mode === "login") {
       const username = form.user.value.trim();
       const password = form.pass.value;
-      if (username === "admin" && password === "1234") {
+      if (!username || !password) {
+        setStatus("Please enter username and password.");
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res = await fetch("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setStatus(data?.message || "Login failed. Please try again.");
+          return;
+        }
+
+        if (data?.token) {
+          onTokenReceived(data.token);
+        }
         onSuccess();
-      } else {
-        setStatus("Invalid login credentials. Please try again.");
+        setStatus("");
+      } catch (error) {
+        setStatus("Auth server is offline. Start backend with `npm run dev:full`.");
+      } finally {
+        setLoading(false);
       }
       return;
     }
@@ -34,9 +59,27 @@ export default function Login({ onSuccess }) {
       return;
     }
 
-    setStatus("Account created successfully. Please login with your new credentials.");
-    setMode("login");
-    form.reset();
+    setLoading(true);
+    try {
+      const res = await fetch("/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus(data?.message || "Signup failed. Please try again.");
+        return;
+      }
+
+      setStatus("Account created successfully. Please login with your new credentials.");
+      setMode("login");
+      form.reset();
+    } catch (error) {
+      setStatus("Auth server is offline. Start backend with `npm run dev:full`.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -44,6 +87,9 @@ export default function Login({ onSuccess }) {
       <div className="auth-card">
         <div className="glow-ring" />
         <div className="auth-inner">
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 22 }}>
+            <BrandLogo size={56} alt="" aria-hidden />
+          </div>
           <h2 className="auth-heading">
             {mode === "login" ? "Welcome Back" : "Create Your Account"}
           </h2>
@@ -62,8 +108,8 @@ export default function Login({ onSuccess }) {
             {mode === "signup" && (
               <input className="auth-input" type="password" name="confirm" placeholder="Confirm password" />
             )}
-            <button className="auth-button" type="submit">
-              {mode === "login" ? "Login" : "Sign Up"}
+            <button className="auth-button" type="submit" disabled={loading}>
+              {loading ? "Please wait..." : mode === "login" ? "Login" : "Sign Up"}
             </button>
           </form>
 
