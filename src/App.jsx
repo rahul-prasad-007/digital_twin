@@ -1,5 +1,5 @@
 import { Routes, Route } from "react-router-dom";
-import Landing from "./components/Landing.jsx";
+import Index from "./components/Index.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import { initialBins } from "./data/initialBins.js";
 import { apiUrl } from "./config/api.js";
@@ -36,7 +36,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<Index />} />
       <Route path="/dashboard/*" element={<Dashboard initialBins={initialBins} getPrediction={getPrediction} />} />
     </Routes>
   );
